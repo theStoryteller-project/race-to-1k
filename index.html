@@ -53,6 +53,8 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 .btn{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:10px 20px;border-radius:5px;border:1px solid;cursor:pointer;background:transparent;transition:background .15s,color .15s;font-weight:700;}
 .btn-reset{color:var(--txt2);border-color:rgba(255,255,255,.16);}
 .btn-reset:hover{background:rgba(255,255,255,.05);color:var(--txt);}
+.btn-skip{color:var(--gold2);border-color:rgba(255,170,0,.3);}
+.btn-skip:hover{background:rgba(255,170,0,.08);color:var(--gold);}
 .spd{display:flex;align-items:center;gap:8px;color:var(--txt2);font-size:12px;letter-spacing:1px;}
 .spd input[type=range]{width:90px;accent-color:var(--gold);}
 .bottom{display:flex;align-items:center;gap:14px;margin-top:14px;}
@@ -86,9 +88,10 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
   </div>
   <div class="controls">
     <button class="btn btn-reset" onclick="restartReplay()">↺ REPLAY</button>
+    <button class="btn btn-skip" onclick="skipToEnd()">⏭ SKIP</button>
     <div class="spd">
       <span>SPEED</span>
-      <input type="range" id="spdSlider" min="1" max="10" value="1" step="1">
+      <input type="range" id="spdSlider" min="1" max="20" value="1" step="1">
       <span id="spdVal">1×</span>
     </div>
   </div>
@@ -206,6 +209,19 @@ function animate(ts) {
   document.getElementById('progressBar').style.width = (snapIdx/maxIdx*100) + '%';
   document.getElementById('timeDisp').textContent = fmtDay(snapshots[lo].ts);
   if (playing) rafId = requestAnimationFrame(animate);
+}
+
+function skipToEnd() {
+  cancelAnimationFrame(rafId); playing = false;
+  snapIdx = snapshots.length - 1;
+  const last = snapshots[snapIdx];
+  PLAYERS.forEach(p => { dispLP[p.name] = getLP(last?.players[p.name]); });
+  PLAYERS.forEach(p => {
+    if (!winnerSeen && dispLP[p.name] !== null && Math.round(dispLP[p.name]) >= 1000) { winnerSeen = p.name; showWinner(p); }
+  });
+  renderChart();
+  document.getElementById('progressBar').style.width = '100%';
+  document.getElementById('timeDisp').textContent = last ? fmtDay(last.ts) : '—';
 }
 
 function restartReplay() {
