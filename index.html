@@ -58,8 +58,13 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 .spd{display:flex;align-items:center;gap:8px;color:var(--txt2);font-size:12px;letter-spacing:1px;}
 .spd input[type=range]{width:90px;accent-color:var(--gold);}
 .bottom{display:flex;align-items:center;gap:14px;margin-top:14px;}
-.progress-wrap{flex:1;background:rgba(255,255,255,.04);border-radius:3px;height:2px;overflow:hidden;}
-.progress-bar{height:100%;background:var(--gold);transition:width .3s linear;box-shadow:0 0 5px rgba(255,215,0,.38);}
+.progress-wrap{flex:1;background:rgba(255,255,255,.04);border-radius:3px;height:6px;overflow:visible;position:relative;cursor:pointer;transition:height .15s;}
+.progress-wrap:hover{height:8px;}
+.progress-bar{height:100%;background:var(--gold);border-radius:3px;transition:width .1s linear;box-shadow:0 0 5px rgba(255,215,0,.38);pointer-events:none;}
+.scrub-thumb{position:absolute;top:50%;right:0;transform:translate(50%,-50%);width:13px;height:13px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px rgba(255,215,0,.6);pointer-events:none;opacity:0;transition:opacity .15s;}
+.progress-wrap:hover .scrub-thumb{opacity:1;}
+.scrub-tooltip{position:absolute;bottom:18px;transform:translateX(-50%);background:rgba(10,10,30,.92);border:1px solid rgba(255,215,0,.25);border-radius:5px;padding:4px 10px;font-family:'Orbitron',sans-serif;font-size:9px;color:var(--gold2);letter-spacing:1px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;}
+.progress-wrap:hover .scrub-tooltip{opacity:1;}
 .time-disp{font-family:'Orbitron',sans-serif;font-size:11px;color:var(--txt2);letter-spacing:2px;white-space:nowrap;flex-shrink:0;}
 </style>
 </head>
@@ -96,7 +101,11 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
     </div>
   </div>
   <div class="bottom">
-    <div class="progress-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar" id="progressBar" style="width:0%"></div>
+      <div class="scrub-thumb" id="scrubThumb"></div>
+      <div class="scrub-tooltip" id="scrubTooltip"></div>
+    </div>
     <div class="time-disp" id="timeDisp">—</div>
   </div>
 </div>
@@ -120,10 +129,8 @@ const getLP = v => (v !== null && v !== undefined) ? (typeof v === 'object' ? v.
   window.addEventListener('resize', resize); init(); draw();
 })();
 
-/* Status */
 function setStatus(msg, cls) {}
 
-/* Fetch from Railway */
 async function fetchData() {
   setStatus('Načítám data…', 'loading');
   try {
@@ -142,7 +149,6 @@ async function fetchData() {
   }
 }
 
-/* Chart */
 function buildChart() {
   const ci = document.getElementById('chartInner');
   ci.innerHTML = '';
@@ -163,14 +169,15 @@ function buildChart() {
 }
 
 function renderChart() {
-  const sorted = [...PLAYERS].sort((a,b) => (dispLP[b.name]||0) - (dispLP[a.name]||0));
+  // Seřadit podle klíče (p.key), ne p.name
+  const sorted = [...PLAYERS].sort((a,b) => (dispLP[b.key]||0) - (dispLP[a.key]||0));
   sorted.forEach((p, rank) => {
     const i = PLAYERS.indexOf(p);
     document.getElementById('row_'+i).style.top = (6 + rank*BAR_H) + 'px';
     const rnk = document.getElementById('rnk_'+i);
     rnk.textContent = rank+1;
     rnk.className = 'r-rank' + (rank===0?' rk1':rank===1?' rk2':rank===2?' rk3':'');
-    const lp = dispLP[p.name];
+    const lp = dispLP[p.key];
     const lr = lp !== null ? Math.round(lp) : null;
     const bar = document.getElementById('bar_'+i);
     bar.style.width = (lr !== null ? Math.min(100, lr/10) : 0) + '%';
@@ -181,14 +188,13 @@ function renderChart() {
   });
 }
 
-/* Animation */
 function getSpeed() { return parseInt(document.getElementById('spdSlider').value) * 0.22; }
 
 function animate(ts) {
   if (!lastTs) lastTs = ts;
   const dt = Math.min(ts - lastTs, 120); lastTs = ts;
   if (snapshots.length <= 1) {
-    PLAYERS.forEach(p => { dispLP[p.name] = getLP(snapshots[0]?.players[p.name]); });
+    PLAYERS.forEach(p => { dispLP[p.key] = getLP(snapshots[0]?.players[p.key]); });
     renderChart();
     if (snapshots[0]) { document.getElementById('timeDisp').textContent = fmtDay(snapshots[0].ts); document.getElementById('progressBar').style.width = '100%'; }
     return;
@@ -200,13 +206,14 @@ function animate(ts) {
   const hi = lo + 1;
   const t = snapIdx - lo;
   PLAYERS.forEach(p => {
-    const va = getLP(snapshots[lo].players[p.name]);
-    const vb = getLP(snapshots[hi]?.players[p.name]);
-    dispLP[p.name] = (va !== null && vb !== null) ? lerp(va, vb, t) : (va ?? vb ?? null);
-    if (!winnerSeen && dispLP[p.name] !== null && Math.round(dispLP[p.name]) >= 1000) { winnerSeen = p.name; showWinner(p); }
+    const va = getLP(snapshots[lo].players[p.key]);
+    const vb = getLP(snapshots[hi]?.players[p.key]);
+    dispLP[p.key] = (va !== null && vb !== null) ? lerp(va, vb, t) : (va ?? vb ?? null);
+    if (!winnerSeen && dispLP[p.key] !== null && Math.round(dispLP[p.key]) >= 1000) { winnerSeen = p.key; showWinner(p); }
   });
   renderChart();
   document.getElementById('progressBar').style.width = (snapIdx/maxIdx*100) + '%';
+  document.getElementById('scrubThumb').style.left = (snapIdx/maxIdx*100) + '%';
   document.getElementById('timeDisp').textContent = fmtDay(snapshots[lo].ts);
   if (playing) rafId = requestAnimationFrame(animate);
 }
@@ -215,12 +222,13 @@ function skipToEnd() {
   cancelAnimationFrame(rafId); playing = false;
   snapIdx = snapshots.length - 1;
   const last = snapshots[snapIdx];
-  PLAYERS.forEach(p => { dispLP[p.name] = getLP(last?.players[p.name]); });
+  PLAYERS.forEach(p => { dispLP[p.key] = getLP(last?.players[p.key]); });
   PLAYERS.forEach(p => {
-    if (!winnerSeen && dispLP[p.name] !== null && Math.round(dispLP[p.name]) >= 1000) { winnerSeen = p.name; showWinner(p); }
+    if (!winnerSeen && dispLP[p.key] !== null && Math.round(dispLP[p.key]) >= 1000) { winnerSeen = p.key; showWinner(p); }
   });
   renderChart();
   document.getElementById('progressBar').style.width = '100%';
+  document.getElementById('scrubThumb').style.left = '100%';
   document.getElementById('timeDisp').textContent = last ? fmtDay(last.ts) : '—';
 }
 
@@ -228,7 +236,8 @@ function restartReplay() {
   cancelAnimationFrame(rafId); snapIdx = 0; lastTs = null; winnerSeen = null; playing = true;
   document.getElementById('winnerWrap').classList.remove('show');
   document.getElementById('progressBar').style.width = '0%';
-  PLAYERS.forEach(p => { dispLP[p.name] = getLP(snapshots[0]?.players[p.name]); });
+  document.getElementById('scrubThumb').style.left = '0%';
+  PLAYERS.forEach(p => { dispLP[p.key] = getLP(snapshots[0]?.players[p.key]); });
   renderChart(); rafId = requestAnimationFrame(animate);
 }
 
@@ -246,23 +255,87 @@ function fmtDay(ts) {
 
 document.getElementById('spdSlider').oninput = function() { document.getElementById('spdVal').textContent = this.value + '×'; };
 
-/* Main */
+/* Scrubber */
+function scrubTo(ratio) {
+  if (snapshots.length < 2) return;
+  cancelAnimationFrame(rafId);
+  playing = false;
+  lastTs = null;
+  winnerSeen = null;
+  document.getElementById('winnerWrap').classList.remove('show');
+  snapIdx = ratio * (snapshots.length - 1);
+  const lo = Math.min(Math.floor(snapIdx), snapshots.length - 2);
+  const hi = lo + 1;
+  const t = snapIdx - lo;
+  PLAYERS.forEach(p => {
+    const va = getLP(snapshots[lo].players[p.key]);
+    const vb = getLP(snapshots[hi]?.players[p.key]);
+    dispLP[p.key] = (va !== null && vb !== null) ? lerp(va, vb, t) : (va ?? vb ?? null);
+    if (!winnerSeen && dispLP[p.key] !== null && Math.round(dispLP[p.key]) >= 1000) { winnerSeen = p.key; showWinner(p); }
+  });
+  renderChart();
+  const pct = ratio * 100;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('scrubThumb').style.left = pct + '%';
+  document.getElementById('timeDisp').textContent = fmtDay(snapshots[lo].ts);
+}
+
+function initScrubber() {
+  const wrap = document.getElementById('progressWrap');
+  const tooltip = document.getElementById('scrubTooltip');
+  const thumb = document.getElementById('scrubThumb');
+  let dragging = false;
+
+  function getRatio(e) {
+    const rect = wrap.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  }
+
+  function updateTooltip(ratio) {
+    if (snapshots.length < 2) return;
+    const idx = Math.min(Math.floor(ratio * (snapshots.length - 1)), snapshots.length - 1);
+    tooltip.textContent = fmtDay(snapshots[idx].ts);
+    tooltip.style.left = (ratio * 100) + '%';
+    thumb.style.left = (ratio * 100) + '%';
+  }
+
+  wrap.addEventListener('mousemove', e => { if (!dragging) updateTooltip(getRatio(e)); });
+  wrap.addEventListener('mousedown', e => {
+    dragging = true;
+    scrubTo(getRatio(e));
+    updateTooltip(getRatio(e));
+  });
+  window.addEventListener('mousemove', e => { if (dragging) { scrubTo(getRatio(e)); updateTooltip(getRatio(e)); } });
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  // Touch support
+  wrap.addEventListener('touchstart', e => { dragging = true; scrubTo(getRatio(e.touches[0])); }, {passive:true});
+  window.addEventListener('touchmove', e => { if (dragging) scrubTo(getRatio(e.touches[0])); }, {passive:true});
+  window.addEventListener('touchend', () => { dragging = false; });
+}
+
 async function main() {
   const data = await fetchData();
   snapshots = (data.snapshots || []).slice().sort((a,b) => a.ts - b.ts);
   if (snapshots.length === 0) { setStatus('Žádná data ze serveru', 'err'); return; }
 
-  // Sestav seznam hráčů ze všech snapshotů
+  // Sestav seznam hráčů — klíč je name_REGION, name je pro zobrazení
   const playerMap = {};
   snapshots.forEach(snap => {
-    Object.entries(snap.players).forEach(([name, val]) => {
-      if (!playerMap[name]) playerMap[name] = val.region || 'AM';
+    Object.entries(snap.players).forEach(([key, val]) => {
+      if (!playerMap[key]) {
+        // Podpora starých snapshotů (klíč = name) i nových (klíč = name_AM / name_EMEA)
+        const name = val.name || key;
+        const region = val.region || 'AM';
+        playerMap[key] = { key, name, region };
+      }
     });
   });
-  PLAYERS = Object.entries(playerMap).map(([name, region]) => ({ name, region }));
+  PLAYERS = Object.values(playerMap);
 
   buildChart();
-  PLAYERS.forEach(p => { dispLP[p.name] = getLP(snapshots[0]?.players[p.name]); });
+  initScrubber();
+  PLAYERS.forEach(p => { dispLP[p.key] = getLP(snapshots[0]?.players[p.key]); });
   renderChart();
   rafId = requestAnimationFrame(animate);
 }
