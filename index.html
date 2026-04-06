@@ -28,7 +28,8 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 .finish-line{position:absolute;top:0;bottom:0;right:130px;width:1px;background:#ff3355;opacity:.3;z-index:5;}
 .finish-lbl{position:absolute;top:7px;right:134px;font-family:'Orbitron',sans-serif;font-size:8px;color:#ff3355;letter-spacing:2px;opacity:.55;z-index:6;}
 .chart-inner{position:relative;padding:6px 0;}
-.bar-row{display:flex;align-items:center;height:50px;padding:0 16px;position:absolute;left:0;right:0;transition:top .6s cubic-bezier(.4,0,.2,1);}
+.bar-row{display:flex;align-items:center;height:50px;padding:0 16px;position:absolute;left:0;right:0;transition:top .6s cubic-bezier(.4,0,.2,1),opacity .3s;}
+.bar-row.hidden{opacity:0;pointer-events:none;}
 .r-rank{width:28px;text-align:center;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;color:var(--txt2);flex-shrink:0;}
 .r-rank.rk1{color:var(--gold);}.r-rank.rk2{color:#b0b0b0;}.r-rank.rk3{color:#b07040;}
 .r-name{width:148px;font-size:15px;font-weight:700;letter-spacing:.3px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -55,13 +56,21 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 .btn-reset:hover{background:rgba(255,255,255,.05);color:var(--txt);}
 .btn-skip{color:var(--gold2);border-color:rgba(255,170,0,.3);}
 .btn-skip:hover{background:rgba(255,170,0,.08);color:var(--gold);}
+.btn-play{color:#4dffb0;border-color:rgba(77,255,176,.3);display:none;}
+.btn-play:hover{background:rgba(77,255,176,.08);color:#7fffcc;}
+.btn-play.visible{display:inline-block;}
 .spd{display:flex;align-items:center;gap:8px;color:var(--txt2);font-size:12px;letter-spacing:1px;}
 .spd input[type=range]{width:90px;accent-color:var(--gold);}
+.pagination{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;}
+.pg-btn{font-family:'Orbitron',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:8px 16px;border-radius:5px;border:1px solid rgba(255,255,255,.14);cursor:pointer;background:transparent;color:var(--txt2);transition:background .15s,color .15s;font-weight:700;}
+.pg-btn:hover:not(:disabled){background:rgba(255,255,255,.05);color:var(--txt);}
+.pg-btn:disabled{opacity:.3;cursor:default;}
+.pg-info{font-family:'Orbitron',sans-serif;font-size:10px;color:var(--gold2);letter-spacing:2px;min-width:120px;text-align:center;}
 .bottom{display:flex;align-items:center;gap:14px;margin-top:14px;}
 .progress-wrap{flex:1;background:rgba(255,255,255,.04);border-radius:3px;height:6px;overflow:visible;position:relative;cursor:pointer;transition:height .15s;}
 .progress-wrap:hover{height:8px;}
 .progress-bar{height:100%;background:var(--gold);border-radius:3px;transition:width .1s linear;box-shadow:0 0 5px rgba(255,215,0,.38);pointer-events:none;}
-.scrub-thumb{position:absolute;top:50%;right:0;transform:translate(50%,-50%);width:13px;height:13px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px rgba(255,215,0,.6);pointer-events:none;opacity:0;transition:opacity .15s;}
+.scrub-thumb{position:absolute;top:50%;left:0;transform:translate(-50%,-50%);width:13px;height:13px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px rgba(255,215,0,.6);pointer-events:none;opacity:0;transition:opacity .15s;}
 .progress-wrap:hover .scrub-thumb{opacity:1;}
 .scrub-tooltip{position:absolute;bottom:18px;transform:translateX(-50%);background:rgba(10,10,30,.92);border:1px solid rgba(255,215,0,.25);border-radius:5px;padding:4px 10px;font-family:'Orbitron',sans-serif;font-size:9px;color:var(--gold2);letter-spacing:1px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;}
 .progress-wrap:hover .scrub-tooltip{opacity:1;}
@@ -93,12 +102,18 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
   </div>
   <div class="controls">
     <button class="btn btn-reset" onclick="restartReplay()">↺ REPLAY</button>
+    <button class="btn btn-play" id="btnPlay" onclick="resumeReplay()">▶ PLAY</button>
     <button class="btn btn-skip" onclick="skipToEnd()">⏭ SKIP</button>
     <div class="spd">
       <span>SPEED</span>
       <input type="range" id="spdSlider" min="1" max="20" value="1" step="1">
       <span id="spdVal">1×</span>
     </div>
+  </div>
+  <div class="pagination">
+    <button class="pg-btn" id="pgPrev" onclick="changePage(-1)" disabled>◀ PREV</button>
+    <div class="pg-info" id="pgInfo">—</div>
+    <button class="pg-btn" id="pgNext" onclick="changePage(1)">NEXT ▶</button>
   </div>
   <div class="bottom">
     <div class="progress-wrap" id="progressWrap">
@@ -113,9 +128,12 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 const RAILWAY_URL = 'https://race-to-1k-server-production.up.railway.app';
 const RACE_START = new Date('2026-04-01T00:00:00');
 const BAR_H = 50;
+const PAGE_SIZE = 20;
 
 let PLAYERS = [];
 let snapshots = [], snapIdx = 0, dispLP = {}, playing = true, rafId = null, lastTs = null, winnerSeen = null;
+let currentPage = 0;
+
 const lerp = (a, b, t) => a + (b - a) * t;
 const getLP = v => (v !== null && v !== undefined) ? (typeof v === 'object' ? v.lp : v) : null;
 
@@ -129,24 +147,17 @@ const getLP = v => (v !== null && v !== undefined) ? (typeof v === 'object' ? v.
   window.addEventListener('resize', resize); init(); draw();
 })();
 
-function setStatus(msg, cls) {}
+function setPlaying(val) {
+  playing = val;
+  document.getElementById('btnPlay').classList.toggle('visible', !val);
+}
 
 async function fetchData() {
-  setStatus('Načítám data…', 'loading');
   try {
     const r = await fetch(RAILWAY_URL + '/snapshots');
     if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
-    const n = data.snapshots?.length || 0;
-    const last = data.snapshots?.[n-1];
-    const d = last ? new Date(last.ts) : null;
-    const timeStr = d ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : '—';
-    setStatus(`${n} snapshotů · aktualizováno ${timeStr}`, 'ok');
-    return data;
-  } catch(e) {
-    setStatus('Chyba: ' + e.message, 'err');
-    return { snapshots: [] };
-  }
+    return await r.json();
+  } catch(e) { return { snapshots: [] }; }
 }
 
 function buildChart() {
@@ -154,7 +165,7 @@ function buildChart() {
   ci.innerHTML = '';
   PLAYERS.forEach((p, i) => {
     const d = document.createElement('div');
-    d.className = 'bar-row'; d.id = 'row_' + i;
+    d.className = 'bar-row hidden'; d.id = 'row_' + i;
     d.innerHTML =
       `<div class="r-rank" id="rnk_${i}"></div>` +
       `<div class="r-name">${p.name}</div>` +
@@ -163,29 +174,52 @@ function buildChart() {
       `<div class="r-reg ${p.region.toLowerCase()}">${p.region}</div>`;
     ci.appendChild(d);
   });
-  ci.style.height = (PLAYERS.length * BAR_H + 12) + 'px';
+  ci.style.height = (PAGE_SIZE * BAR_H + 12) + 'px';
   document.getElementById('gridLines').innerHTML = '<div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div><div class="grid-line"></div>';
   document.getElementById('axis').innerHTML = ['0','250','500','750','1000'].map(v=>`<span>${v}</span>`).join('');
 }
 
 function renderChart() {
-  // Seřadit podle klíče (p.key), ne p.name
   const sorted = [...PLAYERS].sort((a,b) => (dispLP[b.key]||0) - (dispLP[a.key]||0));
-  sorted.forEach((p, rank) => {
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pageStart = currentPage * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+
+  document.getElementById('pgInfo').textContent =
+    `PAGE ${currentPage+1} / ${totalPages}  ·  #${pageStart+1}–${Math.min(pageEnd, sorted.length)}`;
+  document.getElementById('pgPrev').disabled = currentPage === 0;
+  document.getElementById('pgNext').disabled = currentPage >= totalPages - 1;
+
+  sorted.forEach((p, globalRank) => {
     const i = PLAYERS.indexOf(p);
-    document.getElementById('row_'+i).style.top = (6 + rank*BAR_H) + 'px';
+    const onPage = globalRank >= pageStart && globalRank < pageEnd;
+    const row = document.getElementById('row_'+i);
+    if (!onPage) { row.classList.add('hidden'); return; }
+    row.classList.remove('hidden');
+
+    const slotIdx = globalRank - pageStart;
+    row.style.top = (6 + slotIdx * BAR_H) + 'px';
+
     const rnk = document.getElementById('rnk_'+i);
-    rnk.textContent = rank+1;
-    rnk.className = 'r-rank' + (rank===0?' rk1':rank===1?' rk2':rank===2?' rk3':'');
+    rnk.textContent = globalRank + 1;
+    rnk.className = 'r-rank' + (globalRank===0?' rk1':globalRank===1?' rk2':globalRank===2?' rk3':'');
+
     const lp = dispLP[p.key];
     const lr = lp !== null ? Math.round(lp) : null;
     const bar = document.getElementById('bar_'+i);
     bar.style.width = (lr !== null ? Math.min(100, lr/10) : 0) + '%';
     bar.className = 'r-bar ' + (lr >= 1000 ? 'won' : p.region.toLowerCase());
+
     const lpEl = document.getElementById('lp_'+i);
     lpEl.textContent = lr !== null ? lr+' LP' : '— LP';
     lpEl.className = 'r-lp' + (lr >= 1000 ? ' maxed' : '');
   });
+}
+
+function changePage(dir) {
+  const totalPages = Math.ceil(PLAYERS.length / PAGE_SIZE);
+  currentPage = Math.max(0, Math.min(totalPages - 1, currentPage + dir));
+  renderChart();
 }
 
 function getSpeed() { return parseInt(document.getElementById('spdSlider').value) * 0.22; }
@@ -201,7 +235,7 @@ function animate(ts) {
   }
   snapIdx += (dt/1000) * getSpeed();
   const maxIdx = snapshots.length - 1;
-  if (snapIdx >= maxIdx) { snapIdx = maxIdx; playing = false; }
+  if (snapIdx >= maxIdx) { snapIdx = maxIdx; setPlaying(false); }
   const lo = Math.min(Math.floor(snapIdx), maxIdx-1);
   const hi = lo + 1;
   const t = snapIdx - lo;
@@ -212,14 +246,22 @@ function animate(ts) {
     if (!winnerSeen && dispLP[p.key] !== null && Math.round(dispLP[p.key]) >= 1000) { winnerSeen = p.key; showWinner(p); }
   });
   renderChart();
-  document.getElementById('progressBar').style.width = (snapIdx/maxIdx*100) + '%';
-  document.getElementById('scrubThumb').style.left = (snapIdx/maxIdx*100) + '%';
+  const pct = snapIdx/maxIdx*100;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('scrubThumb').style.left = pct + '%';
   document.getElementById('timeDisp').textContent = fmtDay(snapshots[lo].ts);
   if (playing) rafId = requestAnimationFrame(animate);
 }
 
+function resumeReplay() {
+  if (playing) return;
+  lastTs = null;
+  setPlaying(true);
+  rafId = requestAnimationFrame(animate);
+}
+
 function skipToEnd() {
-  cancelAnimationFrame(rafId); playing = false;
+  cancelAnimationFrame(rafId); setPlaying(false);
   snapIdx = snapshots.length - 1;
   const last = snapshots[snapIdx];
   PLAYERS.forEach(p => { dispLP[p.key] = getLP(last?.players[p.key]); });
@@ -233,7 +275,8 @@ function skipToEnd() {
 }
 
 function restartReplay() {
-  cancelAnimationFrame(rafId); snapIdx = 0; lastTs = null; winnerSeen = null; playing = true;
+  cancelAnimationFrame(rafId); snapIdx = 0; lastTs = null; winnerSeen = null;
+  setPlaying(true);
   document.getElementById('winnerWrap').classList.remove('show');
   document.getElementById('progressBar').style.width = '0%';
   document.getElementById('scrubThumb').style.left = '0%';
@@ -255,11 +298,10 @@ function fmtDay(ts) {
 
 document.getElementById('spdSlider').oninput = function() { document.getElementById('spdVal').textContent = this.value + '×'; };
 
-/* Scrubber */
 function scrubTo(ratio) {
   if (snapshots.length < 2) return;
   cancelAnimationFrame(rafId);
-  playing = false;
+  setPlaying(false);
   lastTs = null;
   winnerSeen = null;
   document.getElementById('winnerWrap').classList.remove('show');
@@ -283,32 +325,23 @@ function scrubTo(ratio) {
 function initScrubber() {
   const wrap = document.getElementById('progressWrap');
   const tooltip = document.getElementById('scrubTooltip');
-  const thumb = document.getElementById('scrubThumb');
   let dragging = false;
 
   function getRatio(e) {
     const rect = wrap.getBoundingClientRect();
     return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
   }
-
   function updateTooltip(ratio) {
     if (snapshots.length < 2) return;
     const idx = Math.min(Math.floor(ratio * (snapshots.length - 1)), snapshots.length - 1);
     tooltip.textContent = fmtDay(snapshots[idx].ts);
     tooltip.style.left = (ratio * 100) + '%';
-    thumb.style.left = (ratio * 100) + '%';
   }
 
-  wrap.addEventListener('mousemove', e => { if (!dragging) updateTooltip(getRatio(e)); });
-  wrap.addEventListener('mousedown', e => {
-    dragging = true;
-    scrubTo(getRatio(e));
-    updateTooltip(getRatio(e));
-  });
+  wrap.addEventListener('mousemove', e => { updateTooltip(getRatio(e)); });
+  wrap.addEventListener('mousedown', e => { dragging = true; scrubTo(getRatio(e)); updateTooltip(getRatio(e)); });
   window.addEventListener('mousemove', e => { if (dragging) { scrubTo(getRatio(e)); updateTooltip(getRatio(e)); } });
   window.addEventListener('mouseup', () => { dragging = false; });
-
-  // Touch support
   wrap.addEventListener('touchstart', e => { dragging = true; scrubTo(getRatio(e.touches[0])); }, {passive:true});
   window.addEventListener('touchmove', e => { if (dragging) scrubTo(getRatio(e.touches[0])); }, {passive:true});
   window.addEventListener('touchend', () => { dragging = false; });
@@ -317,14 +350,12 @@ function initScrubber() {
 async function main() {
   const data = await fetchData();
   snapshots = (data.snapshots || []).slice().sort((a,b) => a.ts - b.ts);
-  if (snapshots.length === 0) { setStatus('Žádná data ze serveru', 'err'); return; }
+  if (snapshots.length === 0) return;
 
-  // Sestav seznam hráčů — klíč je name_REGION, name je pro zobrazení
   const playerMap = {};
   snapshots.forEach(snap => {
     Object.entries(snap.players).forEach(([key, val]) => {
       if (!playerMap[key]) {
-        // Podpora starých snapshotů (klíč = name) i nových (klíč = name_AM / name_EMEA)
         const name = val.name || key;
         const region = val.region || 'AM';
         playerMap[key] = { key, name, region };
