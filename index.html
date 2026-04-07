@@ -32,7 +32,7 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 .bar-row.hidden{opacity:0;pointer-events:none;}
 .r-rank{width:28px;text-align:center;font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;color:var(--txt2);flex-shrink:0;}
 .r-rank.rk1{color:var(--gold);}.r-rank.rk2{color:#b0b0b0;}.r-rank.rk3{color:#b07040;}
-.r-name{width:148px;font-size:15px;font-weight:700;letter-spacing:.3px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.r-name{width:148px;font-size:15px;font-weight:700;letter-spacing:.3px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;}
 .r-track{flex:1;height:24px;background:rgba(255,255,255,.04);border-radius:4px;overflow:hidden;position:relative;z-index:3;}
 .r-bar{height:100%;border-radius:4px;transition:width .5s cubic-bezier(.4,0,.2,1);min-width:2px;}
 .r-bar.am{background:linear-gradient(90deg,rgba(160,15,35,.85),var(--am));}
@@ -75,6 +75,42 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 .scrub-tooltip{position:absolute;bottom:18px;transform:translateX(-50%);background:rgba(10,10,30,.92);border:1px solid rgba(255,215,0,.25);border-radius:5px;padding:4px 10px;font-family:'Orbitron',sans-serif;font-size:9px;color:var(--gold2);letter-spacing:1px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;}
 .progress-wrap:hover .scrub-tooltip{opacity:1;}
 .time-disp{font-family:'Orbitron',sans-serif;font-size:11px;color:var(--txt2);letter-spacing:2px;white-space:nowrap;flex-shrink:0;}
+
+/* ═══════════════════════════════
+   SPECIAL PLAYER EFFECTS
+═══════════════════════════════ */
+
+/* Storyteller — sky blue flow */
+@keyframes skyflow{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
+.bar-row.sp-storyteller{border:1px solid rgba(100,200,255,.3);background:rgba(0,150,255,.04);border-radius:6px;}
+.bar-row.sp-storyteller .r-name{color:#a8e4ff;}
+.bar-row.sp-storyteller .r-lp{color:#a8e4ff;}
+.r-bar.skyflow{background:linear-gradient(90deg,#0a1a4a,#1a4bff,#00aaff,#a8e4ff,#00cfff,#1a4bff,#0a1a4a)!important;background-size:200% 100%!important;animation:skyflow 2.8s linear infinite!important;transition:width .5s cubic-bezier(.4,0,.2,1)!important;}
+
+/* QuoVadisDomine — glitch name only */
+@keyframes glitch1{0%,88%,100%{clip-path:none;transform:none;color:var(--txt);}90%{clip-path:polygon(0 8%,100% 8%,100% 32%,0 32%);transform:translate(-3px,0);color:#00ffff;}93%{clip-path:polygon(0 52%,100% 52%,100% 78%,0 78%);transform:translate(3px,0);color:#ff00ff;}96%{clip-path:none;transform:none;color:var(--txt);}}
+.bar-row.sp-quovadis{border:1px solid rgba(0,207,255,.15);border-radius:6px;}
+.name-glitch{animation:glitch1 5s steps(1) infinite;}
+
+/* #1 leader — floating particles */
+@keyframes fdot1{0%,100%{transform:translateY(0) scale(1);opacity:.45;}50%{transform:translateY(-10px) scale(1.2);opacity:.9;}}
+@keyframes fdot2{0%,100%{transform:translateY(0) scale(1);opacity:.35;}50%{transform:translateY(-7px) scale(1.1);opacity:.75;}}
+@keyframes fdot3{0%,100%{transform:translateY(0) scale(1);opacity:.55;}50%{transform:translateY(-13px) scale(1.3);opacity:1;}}
+.bar-row.sp-leader{border:1px solid rgba(255,215,0,.18);border-radius:6px;background:rgba(255,215,0,.025);}
+.leader-dots{position:absolute;inset:0;pointer-events:none;overflow:hidden;border-radius:6px;z-index:0;}
+.ldot{position:absolute;width:3px;height:3px;border-radius:50%;background:rgba(255,215,0,.6);}
+
+/* WAD / I LOVE FREEZES — streamer spotlight */
+@keyframes spotlight{0%,100%{opacity:1;}43%{opacity:.6;}46%{opacity:1;}50%{opacity:.78;}53%{opacity:1;}}
+@keyframes liveborder{0%,100%{border-color:rgba(255,40,40,.4);}50%{border-color:rgba(255,40,40,.85);}}
+.bar-row.sp-wad{border:1px solid rgba(255,40,40,.4);border-radius:6px;animation:liveborder 1.3s ease-in-out infinite;}
+.wad-name-text{animation:spotlight 4.5s steps(1) infinite;}
+a.wad-link{color:#fff;text-decoration:none;}
+a.wad-link:hover{color:#ffaaaa;text-decoration:underline;}
+.wad-live{display:none;font-family:'Orbitron',sans-serif;font-size:7px;letter-spacing:2px;color:#ff2828;flex-shrink:0;}
+.wad-live.show{display:inline;}
+@keyframes livepulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+.wad-live.show{animation:livepulse 1s ease-in-out infinite;}
 </style>
 </head>
 <body>
@@ -133,9 +169,15 @@ const PAGE_SIZE = 20;
 let PLAYERS = [];
 let snapshots = [], snapIdx = 0, dispLP = {}, playing = true, rafId = null, lastTs = null, winnerSeen = null;
 let currentPage = 0;
+let wadIsLive = false;
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const getLP = v => (v !== null && v !== undefined) ? (typeof v === 'object' ? v.lp : v) : null;
+
+const isStoryteller = p => p.name === 'Storyteller';
+const isQuoVadis    = p => p.name === 'QuoVadisDomine';
+const isWad         = p => p.name === 'I LOVE FREEZES';
+const isSpecial     = p => isStoryteller(p) || isQuoVadis(p) || isWad(p);
 
 /* Stars */
 (function(){
@@ -160,16 +202,54 @@ async function fetchData() {
   } catch(e) { return { snapshots: [] }; }
 }
 
+async function checkWadLive() {
+  try {
+    const r = await fetch(RAILWAY_URL + '/twitch-live');
+    const data = await r.json();
+    wadIsLive = !!data.live;
+    document.querySelectorAll('.wad-live').forEach(el => el.classList.toggle('show', wadIsLive));
+  } catch(e) { wadIsLive = false; }
+}
+
+function makeNameHTML(p) {
+  if (isWad(p)) {
+    return `<a class="wad-link" href="https://www.twitch.tv/wad100" target="_blank" rel="noopener"><span class="wad-name-text">${p.name}</span></a><span class="wad-live${wadIsLive?' show':''}">● LIVE</span>`;
+  }
+  if (isQuoVadis(p)) return `<span class="name-glitch">${p.name}</span>`;
+  return p.name;
+}
+
+function makeLeaderDots() {
+  const wrap = document.createElement('div');
+  wrap.className = 'leader-dots';
+  const anims = ['fdot1','fdot2','fdot3'];
+  for (let i = 0; i < 9; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'ldot';
+    dot.style.left = (4 + Math.random() * 88) + '%';
+    dot.style.top = (10 + Math.random() * 70) + '%';
+    dot.style.animation = anims[i%3] + ' ' + (1.2 + Math.random()*1.2) + 's ease-in-out ' + (Math.random()*1.5) + 's infinite';
+    wrap.appendChild(dot);
+  }
+  return wrap;
+}
+
 function buildChart() {
   const ci = document.getElementById('chartInner');
   ci.innerHTML = '';
   PLAYERS.forEach((p, i) => {
     const d = document.createElement('div');
-    d.className = 'bar-row hidden'; d.id = 'row_' + i;
+    let cls = 'bar-row hidden';
+    if (isStoryteller(p)) cls += ' sp-storyteller';
+    else if (isQuoVadis(p)) cls += ' sp-quovadis';
+    else if (isWad(p)) cls += ' sp-wad';
+    d.className = cls;
+    d.id = 'row_' + i;
+    const barCls = isStoryteller(p) ? 'r-bar skyflow' : `r-bar ${p.region.toLowerCase()}`;
     d.innerHTML =
       `<div class="r-rank" id="rnk_${i}"></div>` +
-      `<div class="r-name">${p.name}</div>` +
-      `<div class="r-track"><div class="r-bar ${p.region.toLowerCase()}" id="bar_${i}"></div></div>` +
+      `<div class="r-name" id="nm_${i}">${makeNameHTML(p)}</div>` +
+      `<div class="r-track"><div class="${barCls}" id="bar_${i}"></div></div>` +
       `<div class="r-lp" id="lp_${i}">— LP</div>` +
       `<div class="r-reg ${p.region.toLowerCase()}">${p.region}</div>`;
     ci.appendChild(d);
@@ -200,19 +280,36 @@ function renderChart() {
     const slotIdx = globalRank - pageStart;
     row.style.top = (6 + slotIdx * BAR_H) + 'px';
 
+    // #1 leader floating particles — only for non-special players
+    if (globalRank === 0 && !isSpecial(p)) {
+      if (!row.classList.contains('sp-leader')) {
+        row.classList.add('sp-leader');
+        row.insertBefore(makeLeaderDots(), row.firstChild);
+      }
+    } else {
+      row.classList.remove('sp-leader');
+      const dots = row.querySelector('.leader-dots');
+      if (dots) dots.remove();
+    }
+
     const rnk = document.getElementById('rnk_'+i);
     rnk.textContent = globalRank + 1;
     rnk.className = 'r-rank' + (globalRank===0?' rk1':globalRank===1?' rk2':globalRank===2?' rk3':'');
 
     const lp = dispLP[p.key];
     const lr = lp !== null ? Math.round(lp) : null;
+    const isWon = lr >= 1000;
     const bar = document.getElementById('bar_'+i);
     bar.style.width = (lr !== null ? Math.min(100, lr/10) : 0) + '%';
-    bar.className = 'r-bar ' + (lr >= 1000 ? 'won' : p.region.toLowerCase());
+    if (isStoryteller(p)) {
+      bar.className = 'r-bar skyflow' + (isWon ? ' won' : '');
+    } else {
+      bar.className = 'r-bar ' + (isWon ? 'won' : p.region.toLowerCase());
+    }
 
     const lpEl = document.getElementById('lp_'+i);
     lpEl.textContent = lr !== null ? lr+' LP' : '— LP';
-    lpEl.className = 'r-lp' + (lr >= 1000 ? ' maxed' : '');
+    lpEl.className = 'r-lp' + (isWon ? ' maxed' : '');
   });
 }
 
@@ -255,8 +352,7 @@ function animate(ts) {
 
 function resumeReplay() {
   if (playing) return;
-  lastTs = null;
-  setPlaying(true);
+  lastTs = null; setPlaying(true);
   rafId = requestAnimationFrame(animate);
 }
 
@@ -301,9 +397,7 @@ document.getElementById('spdSlider').oninput = function() { document.getElementB
 function scrubTo(ratio) {
   if (snapshots.length < 2) return;
   cancelAnimationFrame(rafId);
-  setPlaying(false);
-  lastTs = null;
-  winnerSeen = null;
+  setPlaying(false); lastTs = null; winnerSeen = null;
   document.getElementById('winnerWrap').classList.remove('show');
   snapIdx = ratio * (snapshots.length - 1);
   const lo = Math.min(Math.floor(snapIdx), snapshots.length - 2);
@@ -326,18 +420,13 @@ function initScrubber() {
   const wrap = document.getElementById('progressWrap');
   const tooltip = document.getElementById('scrubTooltip');
   let dragging = false;
-
-  function getRatio(e) {
-    const rect = wrap.getBoundingClientRect();
-    return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-  }
+  function getRatio(e) { const r = wrap.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); }
   function updateTooltip(ratio) {
     if (snapshots.length < 2) return;
     const idx = Math.min(Math.floor(ratio * (snapshots.length - 1)), snapshots.length - 1);
     tooltip.textContent = fmtDay(snapshots[idx].ts);
     tooltip.style.left = (ratio * 100) + '%';
   }
-
   wrap.addEventListener('mousemove', e => { updateTooltip(getRatio(e)); });
   wrap.addEventListener('mousedown', e => { dragging = true; scrubTo(getRatio(e)); updateTooltip(getRatio(e)); });
   window.addEventListener('mousemove', e => { if (dragging) { scrubTo(getRatio(e)); updateTooltip(getRatio(e)); } });
@@ -369,6 +458,9 @@ async function main() {
   PLAYERS.forEach(p => { dispLP[p.key] = getLP(snapshots[0]?.players[p.key]); });
   renderChart();
   rafId = requestAnimationFrame(animate);
+
+  checkWadLive();
+  setInterval(checkWadLive, 5 * 60 * 1000);
 }
 
 main();
