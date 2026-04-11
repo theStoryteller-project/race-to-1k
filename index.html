@@ -92,6 +92,13 @@ canvas#stars{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;}
 .bar-row.sp-quovadis{border:1px solid transparent;border-radius:6px;}
 .name-glitch{animation:glitch1 5s steps(1) infinite;}
 
+/* QuoMoneyDomine — gold shimmer name + golden bar */
+@keyframes goldshimmer{0%,100%{color:var(--gold);text-shadow:0 0 8px rgba(255,215,0,.55);}50%{color:#ffee99;text-shadow:0 0 20px rgba(255,215,0,1),0 0 36px rgba(255,170,0,.65);}}
+.bar-row.sp-quomoney{border:1px solid rgba(255,215,0,.35);border-radius:6px;background:rgba(255,215,0,.03);}
+.bar-row.sp-quomoney .r-lp{color:var(--gold);}
+.name-gold{animation:goldshimmer 2s ease-in-out infinite;}
+.r-bar.quogold{background:linear-gradient(90deg,rgba(130,95,0,.9),var(--gold))!important;box-shadow:0 0 18px rgba(255,215,0,.45)!important;animation:pw 1.1s ease-in-out infinite!important;}
+
 /* #1 leader — floating particles */
 @keyframes fdot1{0%,100%{transform:translateY(0) scale(1);opacity:.45;}50%{transform:translateY(-10px) scale(1.2);opacity:.9;}}
 @keyframes fdot2{0%,100%{transform:translateY(0) scale(1);opacity:.35;}50%{transform:translateY(-7px) scale(1.1);opacity:.75;}}
@@ -310,6 +317,27 @@ function renderChart() {
     const lpEl = document.getElementById('lp_'+i);
     lpEl.textContent = lr !== null ? lr+' LP' : '— LP';
     lpEl.className = 'r-lp' + (isWon ? ' maxed' : '');
+  });
+
+  // QuoMoneyDomine: the leading QuoVadisDomine gets gold treatment, second keeps glitch
+  const quoPlayers = sorted.filter(p => p.name === 'QuoVadisDomine');
+  quoPlayers.forEach((p, idx) => {
+    const i = PLAYERS.indexOf(p);
+    const row = document.getElementById('row_' + i);
+    const bar = document.getElementById('bar_' + i);
+    const nm  = document.getElementById('nm_' + i);
+    if (!row) return;
+    if (idx === 0) {
+      row.classList.remove('sp-quovadis');
+      row.classList.add('sp-quomoney');
+      nm.innerHTML = '<span class="name-gold">QuoMoneyDomine</span>';
+      const lr = dispLP[p.key] !== null ? Math.round(dispLP[p.key]) : null;
+      bar.className = 'r-bar ' + (lr >= 1000 ? 'won' : 'quogold');
+    } else {
+      row.classList.remove('sp-quomoney');
+      row.classList.add('sp-quovadis');
+      nm.innerHTML = '<span class="name-glitch">QuoVadisDomine</span>';
+    }
   });
 }
 
