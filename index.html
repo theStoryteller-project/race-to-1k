@@ -310,8 +310,12 @@ function renderChart() {
     bar.style.width = (lr !== null ? Math.min(100, lr/10) : 0) + '%';
     if (isStoryteller(p)) {
       bar.className = 'r-bar skyflow' + (isWon ? ' won' : '');
+    } else if (isWon) {
+      bar.className = 'r-bar won';
+    } else if (globalRank === 0) {
+      bar.className = 'r-bar quogold';
     } else {
-      bar.className = 'r-bar ' + (isWon ? 'won' : p.region.toLowerCase());
+      bar.className = 'r-bar ' + p.region.toLowerCase();
     }
 
     const lpEl = document.getElementById('lp_'+i);
@@ -319,26 +323,6 @@ function renderChart() {
     lpEl.className = 'r-lp' + (isWon ? ' maxed' : '');
   });
 
-  // QuoMoneyDomine: the leading QuoVadisDomine gets gold treatment, second keeps glitch
-  const quoPlayers = sorted.filter(p => p.name === 'QuoVadisDomine');
-  quoPlayers.forEach((p, idx) => {
-    const i = PLAYERS.indexOf(p);
-    const row = document.getElementById('row_' + i);
-    const bar = document.getElementById('bar_' + i);
-    const nm  = document.getElementById('nm_' + i);
-    if (!row) return;
-    if (idx === 0) {
-      row.classList.remove('sp-quovadis');
-      row.classList.add('sp-quomoney');
-      nm.innerHTML = '<span class="name-gold">QuoMoneyDomine</span>';
-      const lr = dispLP[p.key] !== null ? Math.round(dispLP[p.key]) : null;
-      bar.className = 'r-bar ' + (lr >= 1000 ? 'won' : 'quogold');
-    } else {
-      row.classList.remove('sp-quomoney');
-      row.classList.add('sp-quovadis');
-      nm.innerHTML = '<span class="name-glitch">QuoVadisDomine</span>';
-    }
-  });
 }
 
 function changePage(dir) {
